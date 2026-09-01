@@ -47,7 +47,7 @@ modelo, scaler, columnas, mapeos = cargar_archivos()
 # ENCABEZADO
 # ==========================================================
 
-st.title("🚗 Predicción de Churn de usuarios")
+st.title("🚗 Predicción de Abandono de usuarios")
 
 st.markdown(
     """
@@ -113,8 +113,8 @@ with st.form("formulario_churn"):
             value=0.0,
             step=0.1,
             help=(
-                "Tiempo promedio asociado al "
-                "Vehicle Turnaround Time."
+                "Tiempo promedio que tarda el conductor "
+                "en llegar al lugar de recogida (en minutos)."
             )
         )
 
@@ -164,8 +164,8 @@ with st.form("formulario_churn"):
             value=0.0,
             step=0.1,
             help=(
-                "Tiempo promedio asociado al "
-                "Customer Turnaround Time."
+                "Tiempo promedio del trayecto desde el"
+                "punto de recogida hasta el destino (en minutos)."
             )
         )
 
@@ -176,7 +176,7 @@ with st.form("formulario_churn"):
             step=0.1,
             help=(
                 "Distancia recorrida durante "
-                "el viaje."
+                "el viaje en Km."
             )
         )
 
