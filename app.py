@@ -8,7 +8,7 @@ import joblib
 # ==========================================================
 
 st.set_page_config(
-    page_title="Predicción de Churn",
+    page_title="Predicción de Abandono",
     page_icon="🚗",
     layout="wide"
 )
@@ -47,7 +47,7 @@ modelo, scaler, columnas, mapeos = cargar_archivos()
 # ENCABEZADO
 # ==========================================================
 
-st.title("🚗 Predicción de Abandono de usuarios")
+st.title("🚗 Predicción de Abandono de Usuarios")
 
 st.markdown(
     """
@@ -211,7 +211,7 @@ with st.form("formulario_churn"):
     st.write("")
 
     boton = st.form_submit_button(
-        "🔍 Analizar riesgo de Churn",
+        "🔍 Analizar riesgo de abandono",
         type="primary",
         use_container_width=True
     )
