@@ -1,18 +1,17 @@
+
 import streamlit as st
 import pandas as pd
 import joblib
-
 
 # ==========================================================
 # CONFIGURACIÓN GENERAL
 # ==========================================================
 
 st.set_page_config(
-    page_title="Predicción de Abandono",
+    page_title="Clasificación de Reservas - Uber",
     page_icon="🚗",
     layout="wide"
 )
-
 
 # ==========================================================
 # CARGA DE ARCHIVOS
@@ -20,68 +19,114 @@ st.set_page_config(
 
 @st.cache_resource
 def cargar_archivos():
-
-    modelo = joblib.load(
-        "modelo_churn_final.pkl"
-    )
-
-    scaler = joblib.load(
-        "scaler_churn.pkl"
-    )
-
-    columnas = joblib.load(
-        "columnas_modelo.pkl"
-    )
-
-    mapeos = joblib.load(
-        "mapeos_categorias.pkl"
-    )
+    modelo = joblib.load("modelo_churn_final.pkl")
+    scaler = joblib.load("scaler_churn.pkl")
+    columnas = joblib.load("columnas_modelo.pkl")
+    mapeos = joblib.load("mapeos_categorias.pkl")
 
     return modelo, scaler, columnas, mapeos
 
 
-modelo, scaler, columnas, mapeos = cargar_archivos()
+try:
+    modelo, scaler, columnas, mapeos = cargar_archivos()
+except Exception as e:
+    st.error("No fue posible cargar los archivos del modelo.")
+    st.exception(e)
+    st.stop()
+
+
+# ==========================================================
+# VALIDACIÓN DE VARIABLES DEL ESCENARIO A
+# ==========================================================
+
+VARIABLES_ESPERADAS = [
+    "Vehicle Type",
+    "Pickup Location",
+    "Drop Location",
+    "Avg VTAT",
+    "Booking Value",
+    "Ride Distance",
+    "Payment Method",
+    "month",
+    "day"
+]
+
+columnas = list(columnas)
+
+if (
+    len(columnas) != 9
+    or set(columnas) != set(VARIABLES_ESPERADAS)
+):
+    st.error(
+        "Los archivos del modelo no corresponden al "
+        "escenario A actualizado."
+    )
+    st.warning(
+        "Debes reemplazar los archivos .pkl por los "
+        "generados después de excluir Avg CTAT."
+    )
+    st.write("Columnas encontradas:", columnas)
+    st.stop()
+
+if hasattr(modelo, "n_features_in_"):
+    if modelo.n_features_in_ != len(columnas):
+        st.error(
+            "El modelo cargado no coincide con las "
+            "nueve variables predictoras."
+        )
+        st.stop()
+
+if hasattr(scaler, "n_features_in_"):
+    if scaler.n_features_in_ != len(columnas):
+        st.error(
+            "El escalador cargado no coincide con "
+            "las nueve variables predictoras."
+        )
+        st.stop()
 
 
 # ==========================================================
 # ENCABEZADO
 # ==========================================================
 
-st.title("🚗 Predicción de Abandono de Usuarios")
+st.title("🚗 Clasificación de Reservas de Uber")
 
 st.markdown(
     """
-    Esta herramienta utiliza un modelo de Machine Learning para
-    estimar el riesgo de abandono de un usuario a partir de las
-    características asociadas a su viaje.
+    Esta aplicación utiliza un modelo **Random Forest
+    optimizado** para clasificar reservas según los patrones
+    identificados en los datos históricos.
 
-    Complete la información y seleccione **Analizar riesgo**.
+    **No Churn:** reserva completada.
+
+    **Churn:** reserva no completada.
+
+    Complete las características de la reserva y seleccione
+    **Analizar reserva**.
     """
+)
+
+st.info(
+    "Este prototipo es una demostración académica. "
+    "No está validado para anticipar cancelaciones "
+    "desde el momento de creación de una reserva."
 )
 
 st.divider()
 
-
 # ==========================================================
-# DATOS DEL VIAJE
+# FORMULARIO
 # ==========================================================
 
-st.subheader("📋 Información del viaje")
+st.subheader("📋 Información de la reserva")
 
-st.caption(
-    "Seleccione las características correspondientes al usuario "
-    "que desea analizar."
-)
-
-
-with st.form("formulario_churn"):
+with st.form("formulario_reserva"):
 
     col1, col2 = st.columns(2)
 
-
-    # ======================================================
+    # ------------------------------------------------------
     # COLUMNA IZQUIERDA
-    # ======================================================
+    # ------------------------------------------------------
 
     with col1:
 
@@ -89,10 +134,6 @@ with st.form("formulario_churn"):
             "🚘 Tipo de vehículo",
             options=list(
                 mapeos["Vehicle Type"].keys()
-            ),
-            help=(
-                "Tipo de vehículo utilizado "
-                "en la reserva."
             )
         )
 
@@ -100,50 +141,34 @@ with st.form("formulario_churn"):
             "📍 Lugar de recogida",
             options=list(
                 mapeos["Pickup Location"].keys()
-            ),
-            help=(
-                "Zona o ubicación donde comenzó "
-                "el viaje."
             )
         )
 
         avg_vtat = st.number_input(
-            "⏱️ Avg VTAT",
+            "⏱️ Tiempo promedio de llegada del conductor (Avg VTAT)",
             min_value=0.0,
             value=0.0,
             step=0.1,
-            help=(
-                "Tiempo promedio que tarda el conductor "
-                "en llegar al lugar de recogida (en minutos)."
-            )
+            help="Tiempo expresado en minutos."
         )
 
         booking_value = st.number_input(
             "💰 Valor de la reserva",
             min_value=0.0,
             value=0.0,
-            step=1.0,
-            help=(
-                "Valor monetario asociado "
-                "a la reserva."
-            )
+            step=1.0
         )
 
         payment_method = st.selectbox(
             "💳 Método de pago",
             options=list(
                 mapeos["Payment Method"].keys()
-            ),
-            help=(
-                "Método de pago utilizado "
-                "por el usuario."
             )
         )
 
-
-    # ======================================================
+    # ------------------------------------------------------
     # COLUMNA DERECHA
-    # ======================================================
+    # ------------------------------------------------------
 
     with col2:
 
@@ -151,52 +176,35 @@ with st.form("formulario_churn"):
             "🏁 Lugar de destino",
             options=list(
                 mapeos["Drop Location"].keys()
-            ),
-            help=(
-                "Zona o ubicación de destino "
-                "del viaje."
-            )
-        )
-
-        avg_ctat = st.number_input(
-            "⏱️ Avg CTAT",
-            min_value=0.0,
-            value=0.0,
-            step=0.1,
-            help=(
-                "Tiempo promedio del trayecto desde el"
-                "punto de recogida hasta el destino (en minutos)."
             )
         )
 
         ride_distance = st.number_input(
-            "🛣️ Distancia del viaje",
+            "🛣️ Distancia del viaje (km)",
             min_value=0.0,
             value=0.0,
-            step=0.1,
-            help=(
-                "Distancia recorrida durante "
-                "el viaje en Km."
-            )
+            step=0.1
         )
+
+        nombres_meses = {
+            1: "Enero",
+            2: "Febrero",
+            3: "Marzo",
+            4: "Abril",
+            5: "Mayo",
+            6: "Junio",
+            7: "Julio",
+            8: "Agosto",
+            9: "Septiembre",
+            10: "Octubre",
+            11: "Noviembre",
+            12: "Diciembre"
+        }
 
         month = st.selectbox(
             "📅 Mes",
             options=list(range(1, 13)),
-            format_func=lambda x: {
-                1: "Enero",
-                2: "Febrero",
-                3: "Marzo",
-                4: "Abril",
-                5: "Mayo",
-                6: "Junio",
-                7: "Julio",
-                8: "Agosto",
-                9: "Septiembre",
-                10: "Octubre",
-                11: "Noviembre",
-                12: "Diciembre"
-            }[x]
+            format_func=lambda x: nombres_meses[x]
         )
 
         day = st.number_input(
@@ -207,11 +215,8 @@ with st.form("formulario_churn"):
             step=1
         )
 
-
-    st.write("")
-
     boton = st.form_submit_button(
-        "🔍 Analizar riesgo de abandono",
+        "🔍 Analizar reserva",
         type="primary",
         use_container_width=True
     )
@@ -223,225 +228,126 @@ with st.form("formulario_churn"):
 
 if boton:
 
-    # Convertir categorías visibles
-    # a los códigos utilizados por el modelo
+    try:
 
-    vehicle_code = mapeos[
-        "Vehicle Type"
-    ][vehicle_type]
+        # Transformar categorías usando los mapeos
+        # originales del entrenamiento.
 
-    pickup_code = mapeos[
-        "Pickup Location"
-    ][pickup_location]
+        vehicle_code = mapeos[
+            "Vehicle Type"
+        ][vehicle_type]
 
-    drop_code = mapeos[
-        "Drop Location"
-    ][drop_location]
+        pickup_code = mapeos[
+            "Pickup Location"
+        ][pickup_location]
 
-    payment_code = mapeos[
-        "Payment Method"
-    ][payment_method]
+        drop_code = mapeos[
+            "Drop Location"
+        ][drop_location]
 
+        payment_code = mapeos[
+            "Payment Method"
+        ][payment_method]
 
-    datos = pd.DataFrame(
-        [{
+        # Construir registro con nueve variables.
+
+        datos = pd.DataFrame([{
             "Vehicle Type": vehicle_code,
             "Pickup Location": pickup_code,
             "Drop Location": drop_code,
             "Avg VTAT": avg_vtat,
-            "Avg CTAT": avg_ctat,
             "Booking Value": booking_value,
             "Ride Distance": ride_distance,
             "Payment Method": payment_code,
             "month": month,
             "day": day
-        }]
-    )
+        }])
 
-
-    try:
-
-        # Orden exacto utilizado en entrenamiento
+        # Respetar el orden original del entrenamiento.
         datos = datos[columnas]
 
-        # Aplicar scaler
+        # Aplicar el mismo escalador.
         datos_scaled = scaler.transform(datos)
 
-        # Predicción
-        prediccion = modelo.predict(
-            datos_scaled
-        )[0]
+        # Clasificación.
+        prediccion = int(
+            modelo.predict(datos_scaled)[0]
+        )
 
+        # Probabilidad estimada de la clase Churn.
+        probabilidad = None
 
-        # Probabilidad
-        if hasattr(
-            modelo,
-            "predict_proba"
-        ):
+        if hasattr(modelo, "predict_proba"):
+            clases = list(modelo.classes_)
 
-            probabilidad = modelo.predict_proba(
-                datos_scaled
-            )[0][1]
+            if 1 in clases:
+                indice_churn = clases.index(1)
 
-        else:
-
-            probabilidad = None
-
+                probabilidad = float(
+                    modelo.predict_proba(datos_scaled)[
+                        0, indice_churn
+                    ]
+                )
 
         # ==================================================
         # RESULTADOS
         # ==================================================
 
         st.divider()
-
         st.subheader("📊 Resultado del análisis")
 
-
-        if probabilidad is not None:
-
-            porcentaje = probabilidad * 100
-
-        else:
-
-            porcentaje = None
-
-
-        # ----------------------------------------------
-        # CLASIFICACIÓN
-        # ----------------------------------------------
-
         if prediccion == 1:
-
             st.error(
-                "⚠️ Usuario con riesgo de Churn"
+                "⚠️ Clasificación: RESERVA NO COMPLETADA"
             )
-
         else:
-
             st.success(
-                "✅ Usuario sin riesgo de Churn"
+                "✅ Clasificación: RESERVA COMPLETADA"
             )
-
-
-        # ----------------------------------------------
-        # MÉTRICAS DE RESULTADO
-        # ----------------------------------------------
 
         r1, r2 = st.columns(2)
 
-
         with r1:
-
-            if prediccion == 1:
-
-                st.metric(
-                    "Clasificación",
-                    "CHURN"
-                )
-
-            else:
-
-                st.metric(
-                    "Clasificación",
-                    "NO CHURN"
-                )
-
+            st.metric(
+                "Clasificación",
+                "CHURN" if prediccion == 1 else "NO CHURN"
+            )
 
         with r2:
-
-            if porcentaje is not None:
-
+            if probabilidad is not None:
                 st.metric(
-                    "Probabilidad estimada de Churn",
-                    f"{porcentaje:.1f}%"
+                    "Estimación del modelo para Churn",
+                    f"{probabilidad * 100:.1f}%"
                 )
-
-
-        # ----------------------------------------------
-        # NIVEL DE RIESGO
-        # ----------------------------------------------
+            else:
+                st.metric(
+                    "Estimación del modelo",
+                    "No disponible"
+                )
 
         if probabilidad is not None:
 
-            st.write("### Nivel de riesgo")
+            st.write("### Estimación de la clase Churn")
 
             st.progress(
-                int(probabilidad * 100)
+                max(
+                    0,
+                    min(100, int(round(probabilidad * 100)))
+                )
             )
 
-
-            if probabilidad >= 0.70:
-
-                nivel = "Alto"
-
-                st.error(
-                    """
-                    🔴 **Riesgo alto**
-
-                    El usuario presenta una alta probabilidad
-                    estimada de abandono.
-                    """
-                )
-
-                st.markdown(
-                    """
-                    **Recomendación de negocio:** priorizar al
-                    usuario dentro de una estrategia de retención,
-                    realizando seguimiento y evaluando acciones
-                    comerciales o de fidelización.
-                    """
-                )
-
-
-            elif probabilidad >= 0.40:
-
-                nivel = "Medio"
-
-                st.warning(
-                    """
-                    🟠 **Riesgo medio**
-
-                    El usuario presenta señales que podrían estar
-                    asociadas con abandono.
-                    """
-                )
-
-                st.markdown(
-                    """
-                    **Recomendación de negocio:** realizar
-                    seguimiento al comportamiento del usuario y
-                    considerar acciones preventivas de retención.
-                    """
-                )
-
-
-            else:
-
-                nivel = "Bajo"
-
-                st.success(
-                    """
-                    🟢 **Riesgo bajo**
-
-                    Actualmente el usuario presenta una baja
-                    probabilidad estimada de abandono.
-                    """
-                )
-
-                st.markdown(
-                    """
-                    **Recomendación de negocio:** mantener las
-                    estrategias actuales de experiencia y
-                    fidelización.
-                    """
-                )
-
+            st.caption(
+                "El porcentaje corresponde a la salida "
+                "predict_proba del clasificador. "
+                "No representa una probabilidad calibrada "
+                "ni una estimación validada de abandono futuro."
+            )
 
         # ==================================================
-        # RESUMEN DEL CASO
+        # RESUMEN DE LA RESERVA
         # ==================================================
 
-        st.write("### 📝 Resumen del usuario")
+        st.write("### 📝 Resumen de la reserva")
 
         resumen = pd.DataFrame({
             "Variable": [
@@ -449,24 +355,21 @@ if boton:
                 "Lugar de recogida",
                 "Lugar de destino",
                 "Avg VTAT",
-                "Avg CTAT",
-                "Valor reserva",
-                "Distancia",
+                "Valor de la reserva",
+                "Distancia del viaje",
                 "Método de pago",
                 "Mes",
                 "Día"
             ],
-
             "Valor": [
                 vehicle_type,
                 pickup_location,
                 drop_location,
                 avg_vtat,
-                avg_ctat,
                 booking_value,
                 ride_distance,
                 payment_method,
-                month,
+                nombres_meses[month],
                 day
             ]
         })
@@ -477,13 +380,11 @@ if boton:
             hide_index=True
         )
 
-
     except Exception as e:
 
         st.error(
-            "No fue posible realizar la predicción."
+            "No fue posible realizar la clasificación."
         )
-
         st.exception(e)
 
 
@@ -495,70 +396,57 @@ st.divider()
 
 st.subheader("🤖 Desempeño del modelo")
 
-st.write(
+st.markdown(
     """
-    El modelo final fue seleccionado después de comparar
-    diferentes algoritmos de clasificación y realizar
-    optimización de hiperparámetros mediante GridSearchCV.
+    El modelo final corresponde a **Random Forest optimizado**,
+    seleccionado después de comparar cuatro algoritmos
+    de clasificación y evaluar sus resultados sobre el
+    conjunto de prueba del escenario A.
     """
 )
-
 
 m1, m2, m3, m4, m5 = st.columns(5)
 
-m1.metric(
-    "Accuracy",
-    "95.57%"
-)
-
-m2.metric(
-    "Precision",
-    "100.00%"
-)
-
-m3.metric(
-    "Recall",
-    "88.33%"
-)
-
-m4.metric(
-    "F1-score",
-    "93.81%"
-)
-
-m5.metric(
-    "ROC-AUC",
-    "99.32%"
-)
-
+m1.metric("Accuracy", "94.18%")
+m2.metric("Precision", "100.00%")
+m3.metric("Recall", "84.68%")
+m4.metric("F1-score", "91.71%")
+m5.metric("ROC-AUC", "98.21%")
 
 st.caption(
-    """
-    Métricas obtenidas sobre el conjunto de prueba reservado
-    para la evaluación final del modelo.
-    """
+    "Resultados del modelo Random Forest optimizado "
+    "sobre 30.000 reservas del conjunto de prueba."
 )
-
 
 # ==========================================================
 # INTERPRETACIÓN
 # ==========================================================
 
 with st.expander(
-    "ℹ️ ¿Cómo interpretar la predicción?"
+    "ℹ️ ¿Cómo interpretar los resultados?"
 ):
 
     st.markdown(
         """
-        **Churn:** el modelo identifica señales asociadas con
-        una posible salida o abandono del usuario.
+        **Churn (1):** reserva que no se completó.
 
-        **No Churn:** el modelo no identifica actualmente
-        suficientes señales para clasificar al usuario como
-        potencial abandono.
+        **No Churn (0):** reserva completada.
 
-        La predicción debe utilizarse como una herramienta de
-        apoyo para priorizar acciones y no como una decisión
-        automática sobre el usuario.
+        **Precision (100 %):** en el conjunto de prueba,
+        las reservas clasificadas como Churn
+        correspondieron efectivamente a esa categoría.
+
+        **Recall (84,68 %):** el modelo identificó
+        aproximadamente 85 de cada 100 reservas
+        realmente no completadas.
+
+        **F1-score (91,71 %):** resume el equilibrio
+        entre precisión y sensibilidad para la clase Churn.
+
+        **Alcance:** esta aplicación permite explorar
+        la clasificación de reservas a partir de
+        información histórica. No demuestra que sea
+        posible anticipar la no finalización desde
+        el momento de la reserva.
         """
     )
